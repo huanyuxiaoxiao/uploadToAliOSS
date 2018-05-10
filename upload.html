@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <!-- layer -->
+
+</head>
+<body>
+<input type="file" id="file"/>
+<button type="button" id="uploadBtn">upload</button>
+<button type="button" id="uploadBase">uploadWithBase64</button>
+
+</body>
+<script src="js/ajaxhook.min.js"></script>
+<script src="https://cdn.bootcss.com/jquery/3.3.1/jquery.min.js"></script>
+<script src="https://cdn.bootcss.com/layer/3.1.0/layer.js"></script>
+<script src="https://system-upload.oss-cn-beijing.aliyuncs.com/aliyun-oss-sdk4.13.2.min.js"></script>
+<script src="https://system-upload.oss-cn-beijing.aliyuncs.com/aliyun-upload-sdk1.3.1.min.js"></script>
+<script src="https://system-upload.oss-cn-beijing.aliyuncs.com/es6-promise.min.js"></script>
+<script type="text/javascript">
+    var client;
+
+    function initClient() {
+        $.get({
+            url: "http://获取sts临时授权信息地址", async: false, success: function (data) {
+                if (data.code != 1) {
+                    layer.msg("授权失败");
+                    return
+                }
+                var result = JSON.parse(data.data.context);
+                console.info(result);
+                client = new OSS.Wrapper({
+                    accessKeyId: result.accessKeyId,
+                    accessKeySecret: result.accessKeySecret,
+                    stsToken: result.securityToken,
+                    endpoint: 'endpoint',
+                    bucket:'bucketName',
+                });
+            }
+        });
+    }
+
+    $("#uploadBtn").click(function () {
+        var file = $('#file').get(0).files[0];
+        if (file == undefined) {
+            alert("请选择文件");
+            return
+        }
+        var storeAs = guid() + "_" + file.name;
+        initClient();
+        client.multipartUpload(storeAs, file).then(function (result) {
+            console.info(result);
+            alert({code: 1, url: result.res.requestUrls[0]});
+        }).catch(function (reason) {
+            console.info(reason);
+            alert({code: 0})
+        });
+    });
+
+    function guid() {
+        return 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
+    $.ajaxSetup({
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader('Authorization', localStorage.getItem("token"));
+            }
+        }
+    );
+
+    /**
+     * 将以base64的图片url数据转换为Blob
+     * @param urlData
+     *            用url方式表示的base64图片数据
+     */
+    function convertBase64UrlToBlob(urlData) {
+
+        var bytes = window.atob(urlData.split(',')[1]);        //去掉url的头，并转换为byte
+
+        //处理异常,将ascii码小于0的转换为大于0
+        var ab = new ArrayBuffer(bytes.length);
+        var ia = new Uint8Array(ab);
+        for (var i = 0; i < bytes.length; i++) {
+            ia[i] = bytes.charCodeAt(i);
+        }
+
+        return new Blob([ab], {type: 'image/png'});
+    }
+
+    $("#uploadBase").click(function () {
+        //例子
+        var base = "data:image/jpg;base64,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";
+        var storeAs = guid() + "_test.jpg";
+        initClient();
+        var base = convertBase64UrlToBlob(base);
+        var reader = new FileReader();
+        reader.readAsArrayBuffer(base);
+        reader.onload = function (event) {
+            // arrayBuffer转Buffer
+            console.info(event.target.result);
+            var buffer = new OSS.Buffer(event.target.result);
+            console.info(buffer);
+            //buffer 不支持使用 multipartUpload 上传 需使用put
+            client.put(storeAs, buffer).then(function (result) {
+                console.info({code: 1, url: result.res.requestUrls[0]});
+            }).catch(function (reason) {
+                console.info(reason);
+            });
+        }
+    });
+</script>
+</html>
